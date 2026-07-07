@@ -89,7 +89,7 @@ def index(request):
     course_titles = dict(CourseData.objects.values_list('id', 'title'))
     test_titles = dict(TestData.objects.values_list('id', 'title'))
     for i in appeal_data_course:
-        course_title = course_titles.get(i['course_id'])
+        course_title = course_titles.get(i['course_id'], '未知课程')
         if len(i['response']) != 0:
             appeal_content += generate_row_notice(i['id'], course_title, i['content'], i['response'], str(i['update_time'])[0:16])
         else:
