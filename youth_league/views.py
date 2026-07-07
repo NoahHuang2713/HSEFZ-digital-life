@@ -173,8 +173,8 @@ def test_inquiry(request):
         test_stu_score = stu_score_map.get(i.pk, '--')
 
         stats = test_stats.get(i.pk, {})
-        test_avg = stats.get('avg')
-        test_max = stats.get('max')
+        test_avg = stats.get('avg') if stats.get('avg') is not None else '--'
+        test_max = stats.get('max') if stats.get('max') is not None else '--'
         content_type = 'test'
         content += generate_row(content_type, i.pk, test_title, test_date, test_stu_score, test_avg, test_max, content_type, i.pk, i.pk)
 
