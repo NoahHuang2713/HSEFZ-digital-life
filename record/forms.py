@@ -53,8 +53,9 @@ class ModifyRecordHolderForm(forms.Form):
 
     s_class = forms.CharField(label='班级', required=True, min_length=1, max_length=200)
 
-    related_record = forms.ChoiceField(required=True, label='相关纪录',
-                            choices=RecordData.objects.values_list("id", "name"))
+    # Choices are populated per-instance in __init__ (see ``query_set``); we
+    # must not query the DB at import time (it also breaks on a fresh DB).
+    related_record = forms.ChoiceField(required=True, label='相关纪录', choices=[])
 
     record = forms.CharField(label='纪录成绩', required=True, min_length=1, max_length=200)
 

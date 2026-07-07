@@ -15,7 +15,7 @@ import datetime
 # Create your views here.
 
 def index(request):
-    matches = MatchData.objects.all()
+    matches = MatchData.objects.select_related('a_class', 'b_class').all()
     form = []
 
     for m in matches:
@@ -35,7 +35,7 @@ def index(request):
 
   
 def detail(request):
-    matches = MatchData.objects.all()
+    matches = MatchData.objects.select_related('a_class', 'b_class').all()
     form, form_past = [], []
 
     for m in matches:
@@ -58,7 +58,7 @@ def detail(request):
 def sports_detail(request):
     matchID = request.GET.get('id', None)
 
-    match = MatchData.objects.get(pk=matchID)
+    match = MatchData.objects.select_related('a_class', 'b_class').get(pk=matchID)
     i = match.toDict()
     time = (i['time'] + datetime.timedelta(hours=8)).strftime("%Y-%m-%d %H:%M")
     i['time'] = time
@@ -94,7 +94,7 @@ def league_manage(request):
             print(e)
             return JsonResponse({'code': 0, 'message': '数据非法或发生了错误'})
 
-    _s = MatchData.objects.all()
+    _s = MatchData.objects.select_related('a_class', 'b_class').all()
     table_content = "<tr><td><a href='%s?id=%d'>%s</a></td><td>%s</td><td>%s</td><td>%s</td><td>%d</td><td>%d</td><td>%s</td></tr>"
     cs = []
     for _ in _s:

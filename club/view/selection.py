@@ -112,7 +112,7 @@ def selection_home_view(request):
 
     time_now = timezone.now()
 
-    for s in SelectionEvent.objects.all():
+    for s in SelectionEvent.objects.prefetch_related('student_group').all():
 
         if s.end_time < time_now:
 
@@ -120,16 +120,18 @@ def selection_home_view(request):
 
         student_string = ''
 
-        student_count = s.student_group.count()
+        # Use the prefetched list so we don't run a query per event.
+        student_groups = list(s.student_group.all())
+        student_count = len(student_groups)
 
         if student_count == 0:
             student_string = '无'
 
         elif student_count == 1:
-            student_string = s.student_group.all()[0].name
+            student_string = student_groups[0].name
 
         else:
-            student_string = s.student_group.all()[0].name + '等'
+            student_string = student_groups[0].name + '等'
 
         if s.start_time <= time_now:
 

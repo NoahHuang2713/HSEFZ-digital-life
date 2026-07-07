@@ -123,14 +123,15 @@ def export_course_score_data(request):
     if (not (request.user.is_superuser or request.user.is_staff)):
         raise Http404
     course_score_export = CourseAssignmentScore.objects.all().values_list('course_id', 'stu_id', 'score')
+    # Map internal ids to student numbers once instead of one query per row.
+    stu_no_map = dict(StudentClubData.objects.values_list('id', 'student_id'))
     response = HttpResponse(content_type='text/csv')
     response['Content-Disposition'] = 'attachment; filename="course_score_' + datetime.now().strftime("%d-%m-%Y %H:%M:%S") + '.csv"'
     writer = csv.writer(response)
     writer.writerow(['course_id', 'stu_id', 'score'])
     for row in course_score_export:
         modified = list(row)
-        stu_no = StudentClubData.objects.filter(id=row[1]).values('student_id')[0]['student_id']
-        modified[1] = stu_no
+        modified[1] = stu_no_map.get(row[1])
         writer.writerow(modified)
     return response
 
@@ -305,14 +306,15 @@ def export_test_score_data(request):
     if (not (request.user.is_superuser or request.user.is_staff)):
         raise Http404
     test_score_export = TestScore.objects.all().values_list('test_id', 'stu_id', 'score')
+    # Map internal ids to student numbers once instead of one query per row.
+    stu_no_map = dict(StudentClubData.objects.values_list('id', 'student_id'))
     response = HttpResponse(content_type='text/csv')
     response['Content-Disposition'] = 'attachment; filename="test_score_' + datetime.now().strftime("%d/%m/%Y %H:%M:%S") + '.csv"'
     writer = csv.writer(response)
     writer.writerow(['test_id', 'stu_id', 'score'])
     for row in test_score_export:
         modified = list(row)
-        stu_no = StudentClubData.objects.filter(id=row[1]).values('student_id')[0]['student_id']
-        modified[1] = stu_no
+        modified[1] = stu_no_map.get(row[1])
         writer.writerow(modified)
     return response
 

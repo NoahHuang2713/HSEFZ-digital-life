@@ -33,7 +33,8 @@ def generate_row(name, score, date):
 
 @login_required()
 def index(request):
-    _ = StudentScoreData.objects.filter(user_id=request.user.pk)
+    _ = StudentScoreData.objects.filter(
+        user_id=request.user.pk).select_related('score_event_id')
     content = ''
     ck_table = StudentDataChecker.objects.filter(user_id=request.user.pk)
     data_checked = False
@@ -91,15 +92,16 @@ def score_manage(request):
     user_data = ''
 
     if student_id != None:
-        _s = StudentScoreData.objects.filter(user_id=student_id)
+        _s = StudentScoreData.objects.filter(
+            user_id=student_id).select_related('score_event_id')
         ss = StudentClubData.objects.get(pk=student_id)
         user_data = ' - %s %s' % (ss.student_id, ss.student_real_name)
         table_content = "<tr><td><a href='%s?id=%d'>%s</a></td><td>%s</td><td>%s</td></tr>"
         cs = []
         for _ in _s:
-            li = ScoreEventData.objects.filter(pk=_.score_event_id.pk)
+            ev = _.score_event_id
             cs.append(table_content %
-                      (modify_score_url, _.pk, li[0].name, li[0].point, _.date_of_addition))
+                      (modify_score_url, _.pk, ev.name, ev.point, _.date_of_addition))
         cs.sort(key=lambda x: x[0])
 
         for i in cs:

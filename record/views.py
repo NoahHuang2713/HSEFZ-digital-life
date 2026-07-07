@@ -16,7 +16,7 @@ def index(request):
 
 def sport_record(request):
     records = RecordData.objects.all()
-    recordHolders = RecordHolderData.objects.all()
+    recordHolders = RecordHolderData.objects.select_related('related_record').all()
     form = []
     form_h = []
 
@@ -48,7 +48,7 @@ def sport_record(request):
 
 def fun_record(request):
     records = RecordData.objects.all()
-    recordHolders = RecordHolderData.objects.all()
+    recordHolders = RecordHolderData.objects.select_related('related_record').all()
     form = []
     form_h = []
 
@@ -108,7 +108,7 @@ def record_holder_manage(request):
     if (not (request.user.is_superuser or request.user.is_staff)):
         raise Http404
 
-    _s = RecordHolderData.objects.all()
+    _s = RecordHolderData.objects.select_related('related_record').all()
     table_content = "<tr><td><a href='%s?id=%d'>%s</a></td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>"
     cs = []
     for _ in _s:

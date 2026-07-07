@@ -2,6 +2,7 @@ from .models import *
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 from django.views.decorators.csrf import csrf_exempt
+from django.db.models import Count
 from .models import UserFavorite, EventClassInformation, StudentClubData
 import json
 
@@ -37,29 +38,47 @@ def fit_constraints(x, A):
 
 def get_selection_data(selection_object, user, is_started, ignore_forbid=False):
     res = {}
-    type_set = EventClassType.objects.filter(event_id=selection_object)
-    class_set = EventClassInformation.objects.filter(event_id=selection_object)
+    # Materialise the type set once so we don't hit the DB multiple times.
+    type_list = list(EventClassType.objects.filter(event_id=selection_object))
+    # Pull the related class_type together with each class to avoid a query per row.
+    class_set = EventClassInformation.objects.filter(
+        event_id=selection_object).select_related('class_type')
     cstt_set = EventClassTypeConstraints.objects.filter(
         event_id=selection_object)
-    cstt_list = [(i.type_id1.pk, i.coef_1, i.type_id2.pk, i.coef_2, i.C)
+    # Use the *_id attributes so we don't trigger a query per constraint row.
+    cstt_list = [(i.type_id1_id, i.coef_1, i.type_id2_id, i.coef_2, i.C)
                  for i in cstt_set]
     user_num = {}
 
-    for i in type_set:
+    for i in type_list:
         user_num[i.pk] = 0
 
-    if type_set.count() <= 1:
+    if len(type_list) <= 1:
         res['display_type'] = False
     else:
         res['display_type'] = True
-        res['types'] = {}
-        for i in type_set:
-            res['types'][i.pk] = i.type_name
+        res['types'] = {i.pk: i.type_name for i in type_list}
 
     res['data'] = []
-    
+
     favorite_ids = set(
         UserFavorite.objects.filter(user=user).values_list("event_class_id", flat=True)
+    )
+
+    # Enrolled count per class for the whole event in a single grouped query.
+    enrolled_counts = dict(
+        StudentSelectionInformation.objects
+        .filter(info_id__event_id=selection_object)
+        .values('info_id')
+        .annotate(cnt=Count('id'))
+        .values_list('info_id', 'cnt')
+    )
+
+    # This user's selections for the whole event in a single query.
+    user_selection_locked = dict(
+        StudentSelectionInformation.objects
+        .filter(info_id__event_id=selection_object, user_id=user)
+        .values_list('info_id', 'locked')
     )
 
     for c in class_set:
@@ -74,16 +93,12 @@ def get_selection_data(selection_object, user, is_started, ignore_forbid=False):
         c_res['desc'] = c.desc
         c_res['name'] = c.name
         c_res['mnum'] = c.max_num
-        c_res['cnum'] = StudentSelectionInformation.objects.filter(
-            info_id=c).count()
+        c_res['cnum'] = enrolled_counts.get(c.pk, 0)
         c_res['rnum'] = max(c.max_num - c_res['cnum'], 0)
-        
+
         c_res['is_favorite'] = (c.pk in favorite_ids)
 
-        rel = StudentSelectionInformation.objects.filter(
-            info_id=c, user_id=user)
-
-        if rel.count() == 0:
+        if c.pk not in user_selection_locked:
 
             if (c.forbid_chs and (not ignore_forbid)):
                 c_res['status'] = 2
@@ -95,10 +110,9 @@ def get_selection_data(selection_object, user, is_started, ignore_forbid=False):
                 c_res['status'] = 0
 
         else:
-            info = rel[0]
             user_num[c_type.pk] += 1
 
-            if info.locked:
+            if user_selection_locked[c.pk]:
                 c_res['status'] = 5
 
             else:
@@ -262,7 +276,10 @@ def convert_selection_data_to_html(data):
 
 def get_selection_list(rec):
 
-    sel_list = StudentSelectionInformation.objects.filter(info_id=rec)
+    # Fetch the related user and prefetch their groups so the loop below does
+    # not issue a query per student (and per student's group set).
+    sel_list = StudentSelectionInformation.objects.filter(
+        info_id=rec).select_related('user_id').prefetch_related('user_id__groups')
 
     res = {'locked': [], 'other': []}
 
@@ -271,8 +288,6 @@ def get_selection_list(rec):
                     'g': ','.join([g.name for g in s.user_id.groups.all()])}
         if s.locked:
             res['locked'].append(cur_data)
-            res['other'].append(cur_data)
-        else:
-            res['other'].append(cur_data)
+        res['other'].append(cur_data)
 
     return res

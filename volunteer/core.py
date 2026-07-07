@@ -16,6 +16,16 @@ def export(request):
     if (not (request.user.is_superuser or request.user.is_staff)):
         raise Http404
     students = StudentClubData.objects.all()
+    # Pre-load every "checked" flag in a single query instead of one per student.
+    checked_user_ids = set(
+        StudentDataChecker.objects.filter(data_checked=True)
+        .values_list('user_id', flat=True)
+    )
+    # Group all score records (with their event) by user in a single query so
+    # the per-student loop below does no additional database access.
+    scores_by_user = {}
+    for sc in StudentScoreData.objects.select_related('score_event_id'):
+        scores_by_user.setdefault(sc.user_id_id, []).append(sc)
     map = {}
     cur = 0
     listOfGrades = []
@@ -26,13 +36,9 @@ def export(request):
         listStudent = []
         listStudent.append(i.student_id)
         listStudent.append(i.student_real_name)
-        check_name = "未确认"
-        check_item = StudentDataChecker.objects.filter(user_id=i)
-        if len(check_item) != 0:
-            if check_item[0].data_checked:
-                check_name = "已确认"
+        check_name = "已确认" if i.pk in checked_user_ids else "未确认"
         listStudent.append(check_name)
-        events = StudentScoreData.objects.filter(user_id=i).all()
+        events = scores_by_user.get(i.pk, [])
         for j in events:
             eventDetail = j.score_event_id
             listStudent.append(eventDetail.name)

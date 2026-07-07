@@ -53,11 +53,11 @@ class ModifyLeagueForm(forms.Form):
 
     time = forms.DateTimeField(required=True, label='开始时间（格式：YYYY-mm-dd HH:mm:ss）')
 
-    a_class = forms.ChoiceField(required=True, label='队伍A',
-                                choices=ClassTeamData.objects.values_list("id", "name"))
+    # Choices are populated per-instance in __init__ (see ``query_set``); we
+    # must not query the DB at import time (it also breaks on a fresh DB).
+    a_class = forms.ChoiceField(required=True, label='队伍A', choices=[])
 
-    b_class = forms.ChoiceField(required=True, label='队伍B',
-                                choices=ClassTeamData.objects.values_list("id", "name"))
+    b_class = forms.ChoiceField(required=True, label='队伍B', choices=[])
 
     a_score = forms.IntegerField(required=True, label='队伍A分数')
 

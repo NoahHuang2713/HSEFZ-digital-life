@@ -13,11 +13,11 @@ def verify_student(request: HttpRequest):
 
     try:
         with connection.cursor() as cursor:
-            
-            query = "SELECT student_real_name, student_id FROM club_studentclubdata WHERE username=\"%s\";"
-            
-            cursor.execute(query%mail)
-            
+
+            query = "SELECT student_real_name, student_id FROM club_studentclubdata WHERE username=%s;"
+
+            cursor.execute(query, [mail])
+
             result = cursor.fetchone()
 
             if result:

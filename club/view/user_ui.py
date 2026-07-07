@@ -97,7 +97,7 @@ def event_manage_view(request):
         raise Http404
 
     user_groups      = [t.name for t in request.user.groups.all()]
-    _s               = SelectionEvent.objects.all()
+    _s               = SelectionEvent.objects.prefetch_related('teachers_group').all()
     table_content    = "<tr><td><a href='%s?id=%d'>%s</a></td><td>%s</td><td>%s</td></tr>"
     modify_event_url = "/modify_event"
     cs               = []
@@ -315,7 +315,7 @@ def modify_event_view(request):
                             cap = True
                         break
                 if (not cap):
-                    cc_l = [cc.info_id.name for cc in StudentSelectionInformation.objects.filter(user_id=user) if cc.info_id.event_id==_]
+                    cc_l = [cc.info_id.name for cc in StudentSelectionInformation.objects.filter(user_id=user).select_related('info_id') if cc.info_id.event_id_id == _.pk]
                     return JsonResponse({'code':0,'message':'该用户课程数已达上限或您设置的上限人数不够大，该用户已报名%s' % (','.join(cc_l))})
 
                 ssi = StudentSelectionInformation(info_id=rec,user_id=user,locked=True)

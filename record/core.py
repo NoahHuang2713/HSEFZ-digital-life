@@ -16,6 +16,8 @@ def export_record_holder(request):
     if (not (request.user.is_superuser or request.user.is_staff)):
         raise Http404
     record_holders = RecordHolderData.objects.all().values_list('name', 's_class', 'record', 'related_record', 'visibility', 'time')
+    # Load all record names once instead of querying twice per holder row.
+    record_names = dict(RecordData.objects.values_list('id', 'name'))
     response = HttpResponse(content_type='text/csv')
     response.charset = 'utf-8-sig'
     response['Content-Disposition'] = 'attachment; filename="record_holder_data_' + datetime.now().strftime("%d/%m/%Y %H:%M:%S") + '.csv"'
@@ -26,8 +28,7 @@ def export_record_holder(request):
         r.append(row[0])
         r.append(row[1])
         r.append(row[2])
-        r.append(RecordData.objects.get(pk=row[3]).name)
-        print(RecordData.objects.get(pk=row[3]).name)
+        r.append(record_names.get(row[3]))
         r.append(row[4])
         r.append(row[5])
         writer.writerow(r)

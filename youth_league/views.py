@@ -85,8 +85,11 @@ def generate_row_notice(id, title, content, response, time):
 def index(request):
     appeal_data_course = AppealData.objects.filter(stu_id=request.user.pk).values('id', 'content', 'response', 'update_time', 'creation_time', 'course_id').order_by('update_time')
     appeal_content = ''
+    # Load lookup tables once instead of querying per appeal row.
+    course_titles = dict(CourseData.objects.values_list('id', 'title'))
+    test_titles = dict(TestData.objects.values_list('id', 'title'))
     for i in appeal_data_course:
-        course_title = CourseData.objects.filter(id=i['course_id']).values('title')[0]['title']
+        course_title = course_titles.get(i['course_id'])
         if len(i['response']) != 0:
             appeal_content += generate_row_notice(i['id'], course_title, i['content'], i['response'], str(i['update_time'])[0:16])
         else:
@@ -94,7 +97,7 @@ def index(request):
 
     appeal_data_test = AppealDataTest.objects.filter(stu_id=request.user.pk).values('id', 'content', 'response', 'update_time', 'creation_time', 'test_id').order_by('update_time')
     for i in appeal_data_test:
-        test_title = TestData.objects.filter(id=i['test_id']).values('title')[0]['title']
+        test_title = test_titles.get(i['test_id'])
         if len(i['response']) != 0:
             appeal_content += generate_row_notice(i['id'], test_title, i['content'], i['response'], str(i['update_time'])[0:16])
         else:
@@ -105,27 +108,29 @@ def index(request):
 @login_required()
 def homework_inquiry(request):
     student_id = request.user.pk
-    stu_score = CourseAssignmentScore.objects.filter(stu_id=student_id).values('score', 'course_id').order_by('course_id')
-    stu_score_available = []
-    stu_score_numc = 0
-    for i in stu_score:
-        stu_score_available.append(stu_score[stu_score_numc]['course_id'])
-        stu_score_numc += 1
+    # This student's scores keyed by course, fetched once.
+    stu_score_map = dict(
+        CourseAssignmentScore.objects.filter(stu_id=student_id)
+        .values_list('course_id', 'score')
+    )
+    # Average and maximum per course computed in a single grouped query
+    # instead of two aggregate queries per course.
+    course_stats = {
+        s['course_id']: s
+        for s in CourseAssignmentScore.objects.values('course_id').annotate(
+            avg=Avg('score'), max=Max('score'))
+    }
 
     course_list = CourseData.objects.all()
     content=''
-    course_id_available_pointer=0
     for i in course_list:
         course_title = i.title
         course_date = i.date
-        if i.pk in stu_score_available:
-            course_stu_score = stu_score[course_id_available_pointer]['score']
-            course_id_available_pointer += 1
-        else:
-            course_stu_score = '--'
+        course_stu_score = stu_score_map.get(i.pk, '--')
 
-        course_avg = CourseAssignmentScore.objects.filter(course_id=i.pk).aggregate(Avg('score'))['score__avg']
-        course_max = CourseAssignmentScore.objects.filter(course_id=i.pk).aggregate(Max('score'))['score__max']
+        stats = course_stats.get(i.pk, {})
+        course_avg = stats.get('avg')
+        course_max = stats.get('max')
         content_type = 'course'
         content += generate_row(content_type, i.pk, course_title, course_date, course_stu_score, course_avg, course_max, content_type, i.pk, i.pk)
 
@@ -147,27 +152,29 @@ def homework_inquiry(request):
 @login_required()
 def test_inquiry(request):
     student_id = request.user.pk
-    stu_score = TestScore.objects.filter(stu_id=student_id).values('score', 'test_id').order_by('test_id')
-    stu_score_available = []
-    stu_score_numc = 0
-    for i in stu_score:
-        stu_score_available.append(stu_score[stu_score_numc]['test_id'])
-        stu_score_numc += 1
+    # This student's scores keyed by test, fetched once.
+    stu_score_map = dict(
+        TestScore.objects.filter(stu_id=student_id)
+        .values_list('test_id', 'score')
+    )
+    # Average and maximum per test computed in a single grouped query
+    # instead of two aggregate queries per test.
+    test_stats = {
+        s['test_id']: s
+        for s in TestScore.objects.values('test_id').annotate(
+            avg=Avg('score'), max=Max('score'))
+    }
 
     test_list = TestData.objects.all()
     content=''
-    test_id_available_pointer=0
     for i in test_list:
         test_title = i.title
         test_date = i.date
-        if i.pk in stu_score_available:
-            test_stu_score = stu_score[test_id_available_pointer]['score']
-            test_id_available_pointer += 1
-        else:
-            test_stu_score = '--'
+        test_stu_score = stu_score_map.get(i.pk, '--')
 
-        test_avg = TestScore.objects.filter(test_id=i.pk).aggregate(Avg('score'))['score__avg']
-        test_max = TestScore.objects.filter(test_id=i.pk).aggregate(Max('score'))['score__max']
+        stats = test_stats.get(i.pk, {})
+        test_avg = stats.get('avg')
+        test_max = stats.get('max')
         content_type = 'test'
         content += generate_row(content_type, i.pk, test_title, test_date, test_stu_score, test_avg, test_max, content_type, i.pk, i.pk)
 
@@ -282,18 +289,21 @@ def appeal_respond(request):
     appeal_data_handled = AppealData.objects.filter(state=True).values('id', 'stu_id', 'course_id', 'content', 'creation_time', 'response')
     content_not_handled = ''
     content_handled = ''
+    # Preload lookup tables once instead of querying per appeal row.
+    stu_no_map = dict(StudentClubData.objects.values_list('id', 'student_id'))
+    course_titles = dict(CourseData.objects.values_list('id', 'title'))
     for row in appeal_data_not_handled:
         appeal_id = row['id']
-        stu_no = StudentClubData.objects.filter(id=row['stu_id']).values('student_id')[0]['student_id']
-        course_title = CourseData.objects.filter(id=row['course_id']).values('title')[0]['title']
+        stu_no = stu_no_map.get(row['stu_id'])
+        course_title = course_titles.get(row['course_id'])
         content = row['content']
         creation_time = str(row['creation_time'])[0:16]
         content_not_handled += generate_row_appeal_not_handled(appeal_id, stu_no, course_title, content, creation_time)
 
     for row in appeal_data_handled:
         appeal_id = row['id']
-        stu_no = StudentClubData.objects.filter(id=row['stu_id']).values('student_id')[0]['student_id']
-        course_title = CourseData.objects.filter(id=row['course_id']).values('title')[0]['title']
+        stu_no = stu_no_map.get(row['stu_id'])
+        course_title = course_titles.get(row['course_id'])
         content = row['content']
         creation_time = str(row['creation_time'])[0:16]
         response = row['response']
@@ -326,18 +336,21 @@ def appeal_test_respond(request):
     appeal_data_handled = AppealDataTest.objects.filter(state=True).values('id', 'stu_id', 'test_id', 'content', 'creation_time', 'response')
     content_not_handled = ''
     content_handled = ''
+    # Preload lookup tables once instead of querying per appeal row.
+    stu_no_map = dict(StudentClubData.objects.values_list('id', 'student_id'))
+    test_titles = dict(TestData.objects.values_list('id', 'title'))
     for row in appeal_data_not_handled:
         appeal_id = row['id']
-        stu_no = StudentClubData.objects.filter(id=row['stu_id']).values('student_id')[0]['student_id']
-        test_title = TestData.objects.filter(id=row['test_id']).values('title')[0]['title']
+        stu_no = stu_no_map.get(row['stu_id'])
+        test_title = test_titles.get(row['test_id'])
         content = row['content']
         creation_time = str(row['creation_time'])[0:16]
         content_not_handled += generate_row_appeal_not_handled(appeal_id, stu_no, test_title, content, creation_time)
 
     for row in appeal_data_handled:
         appeal_id = row['id']
-        stu_no = StudentClubData.objects.filter(id=row['stu_id']).values('student_id')[0]['student_id']
-        test_title = TestData.objects.filter(id=row['test_id']).values('title')[0]['title']
+        stu_no = stu_no_map.get(row['stu_id'])
+        test_title = test_titles.get(row['test_id'])
         content = row['content']
         creation_time = str(row['creation_time'])[0:16]
         response = row['response']
