@@ -62,8 +62,8 @@ def send_email_nosync(mail_subject, message, to):
     
     smtp_server = 'smtp.163.com'
     smtp_port = 465
-    email_user = 'bethany7690@163.com'
-    email_password = 'PKs3uMevCrcydEDK'
+    email_user = 'example@163.com'
+    email_password = 'example'
 
     server = smtplib.SMTP_SSL(smtp_server, smtp_port)
     server.login(email_user, email_password)
